@@ -2,6 +2,17 @@ import os
 import random
 import re
 import json
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.neural_network import BernoulliRBM
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+from typing import List, Tuple, Dict, Optional, Union
 
 def list_files(directory):
     """List all JSON files in the given directory."""
@@ -123,11 +134,6 @@ def generate_training_examples(dir1, dir2, seed, num_examples=100, load_data=Fal
         print(f"Warning: Could only generate {len(training_examples)} examples out of {num_examples} requested.")
     
     return training_examples, labels
-
-import os
-import json
-import random
-from typing import List, Tuple, Dict, Optional, Union
 
 def list_files_by_id(directory: str) -> Dict[int, List[str]]:
     """
@@ -265,14 +271,6 @@ def load_json_data(file_path: str) -> dict:
     """Load JSON data from a file."""
     with open(file_path, 'r') as f:
         return json.load(f)
-    
-
-import json
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 def load_json(file_path):
     """Load JSON file from path."""
@@ -286,7 +284,7 @@ def flatten_features(json_data):
         'convexity', 'signature_density', 'compactness', 'eccentricity', 
         'hu_moments', 'polar_features', 'top_heights', 'bottom_heights', 
         'left_widths', 'right_widths', 'sixfold_surface', 
-        'transition_features'
+        'transition_features', 'mean_sift_descriptor'
     ]
     
     # Initialize flattened list
@@ -465,7 +463,6 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
     X_test_scaled = scaler.transform(X_test)
     
     # Train SVC
-    from sklearn.svm import SVC
     clf = SVC(C=C, kernel=kernel, gamma=gamma, probability=True, random_state=random_state)
     clf.fit(X_train_scaled, y_train)
     
@@ -496,10 +493,78 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
         
     return result_dict
 
+def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_components=1024, learning_rate=0.05, n_iter=40):
+    """
+    Train a Restricted Boltzmann Machine + Logistic Regression pipeline and evaluate performance.
+    
+    Args:
+        examples: List of tuples, each containing paths to two JSON files
+        labels: List of binary labels (0 or 1)
+        test_size: Proportion of data to use for testing
+        random_state: Random seed for reproducibility
+        n_components: Number of hidden units in RBM
+        learning_rate: Learning rate for RBM
+        n_iter: Number of iterations/epochs for RBM
+        
+    Returns:
+        Trained model, scaler, test accuracy, and detailed metrics
+    """
+    # Create feature vectors
+    X = create_feature_vectors(examples)
+    y = np.array(labels)
+    
+    # Split data into train and test sets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=y
+    )
+    
+    # Scale features
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    # Set up RBM + LogisticRegression pipeline
+    # RBM for feature learning + LogisticRegression for classification
+    rbm = BernoulliRBM(n_components=n_components, 
+                       learning_rate=learning_rate,
+                       n_iter=n_iter,
+                       random_state=random_state,
+                       verbose=True)
+    
+    logistic = LogisticRegression(random_state=random_state)
+    
+    classifier = Pipeline(steps=[('rbm', rbm), 
+                                 ('logistic', logistic)])
+    
+    # Train the pipeline
+    classifier.fit(X_train_scaled, y_train)
+    
+    # Make predictions
+    y_pred = classifier.predict(X_test_scaled)
+    
+    # Get probability estimates for ROC curve
+    y_scores = classifier.predict_proba(X_test_scaled)[:, 1]
+    
+    # Evaluate performance
+    accuracy = accuracy_score(y_test, y_pred)
+    class_report = classification_report(y_test, y_pred)
+    conf_matrix = confusion_matrix(y_test, y_pred)
+    
+    # Use cross-validation on the training set
+    cv_scores = cross_val_score(classifier, X_train_scaled, y_train, cv=5)
+    
+    # Return results
+    return {
+        'model': classifier,
+        'scaler': scaler,
+        'test_accuracy': accuracy,
+        'classification_report': class_report,
+        'confusion_matrix': conf_matrix,
+        'cv_scores': cv_scores,
+        'probability_scores': y_scores
+    }
 
 def main():
-
-
     dir1 = "signatures/features_org"
     dir2 = "signatures/features_forg"
     
@@ -508,13 +573,6 @@ def main():
     
     print(f"Generated {len(examples)} training examples")
     print(f"Label distribution: {sum(labels)} examples with label 1 (from dir2), {len(labels) - sum(labels)} with label 0 (from dir1)")
-    
-    # Print some example file paths to verify
-    for i, ((first_file, second_file), label) in enumerate(zip(examples, labels)):
-        print(f"Example {i+1}:")
-        print(f"  First: {first_file}")
-        print(f"  Second: {second_file}")
-        print(f"  Label: {label}")
     
     # Train and evaluate model
     print("Training and evaluating model (Random Forest)...")
@@ -539,6 +597,18 @@ def main():
     # Train and evaluate model
     print("Training and evaluating model (SVC)...")
     results = train_and_evaluate_svc(examples, labels)
+    
+    # Print results
+    print(f"Test Accuracy: {results['test_accuracy']:.4f}")
+    print(f"Cross-validation scores: {results['cv_scores']}")
+    print("Classification Report:")
+    print(results['classification_report'])
+    print("Confusion Matrix:")
+    print(results['confusion_matrix'])
+    
+    # Train and evaluate Boltzmann Machine
+    print("Training and evaluating model (Restricted Boltzmann Machine)...")
+    results = train_and_evaluate_rbm(examples, labels)
     
     # Print results
     print(f"Test Accuracy: {results['test_accuracy']:.4f}")
