@@ -170,22 +170,9 @@ def get_or_train_model(model_name, feature_options, force_train=False):
     feature_hash = get_feature_hash(feature_options)
     model_path = f"models/{model_name}_model_{feature_hash}.pkl"
     scaler_path = f"models/{model_name}_scaler_{feature_hash}.pkl"
-    feature_path = f"models/{model_name}_features_{feature_hash}.pkl"
     
     # Check if we need to train a new model
-    need_training = force_train or not os.path.exists(model_path) or not os.path.exists(scaler_path) or not os.path.exists(feature_path)
-    
-    if not need_training:
-        # Check if the saved feature configuration matches the current one
-        try:
-            with open(feature_path, 'rb') as f:
-                saved_features = pickle.load(f)
-            # If feature configurations don't match, we need to retrain
-            if saved_features != feature_options:
-                need_training = True
-        except:
-            # If there's any error loading the feature configuration, retrain
-            need_training = True
+    need_training = force_train or not os.path.exists(model_path) or not os.path.exists(scaler_path)
     
     if need_training:
         # Create models directory if it doesn't exist
