@@ -277,15 +277,18 @@ def load_json(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
 
-def flatten_features(json_data):
+def flatten_features(json_data, expected_keys=None):
     """Flatten all feature values from the JSON data, handling nested structures."""
+    
     # Define expected feature keys
-    expected_keys = [
-        'convexity', 'signature_density', 'compactness', 'eccentricity', 
-        'hu_moments', 'polar_features', 'top_heights', 'bottom_heights', 
-        'left_widths', 'right_widths', 'sixfold_surface', 
-        'transition_features', 'mean_sift_descriptor'
-    ]
+    if expected_keys is None:
+        # Default expected keys if not provided
+        expected_keys = [
+            'convexity', 'signature_density', 'compactness', 'eccentricity', 
+            'hu_moments', 'polar_features', 'top_heights', 'bottom_heights', 
+            'left_widths', 'right_widths', 'sixfold_surface', 
+            'transition_features', 'mean_sift_descriptor'
+        ]
     
     # Initialize flattened list
     flattened = []
@@ -349,7 +352,7 @@ def flatten_features(json_data):
     
     return np.array(flattened, dtype=float)
 
-def create_feature_vectors(examples):
+def create_feature_vectors(examples, expected_keys=None):
     """
     Process a list of example pairs to create feature vectors.
     
@@ -367,8 +370,8 @@ def create_feature_vectors(examples):
         json2 = load_json(json_path2)
         
         # Flatten each JSON
-        vector1 = flatten_features(json1)
-        vector2 = flatten_features(json2)
+        vector1 = flatten_features(json1, expected_keys)
+        vector2 = flatten_features(json2, expected_keys)
         
         # Create difference vector
         diff_vector = vector1 - vector2
@@ -377,7 +380,7 @@ def create_feature_vectors(examples):
     
     return np.array(feature_vectors)
 
-def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42):
+def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42, expected_keys=None):
     """
     Train a Random Forest classifier and evaluate its performance.
     
@@ -391,7 +394,7 @@ def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42):
         Trained model, scaler, test accuracy, and detailed metrics
     """
     # Create feature vectors
-    X = create_feature_vectors(examples)
+    X = create_feature_vectors(examples, expected_keys)
     y = np.array(labels)
     
     # Split data into train and test sets
@@ -432,7 +435,7 @@ def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42):
 
 
 
-def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1.0, kernel='rbf', gamma='scale'):
+def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1.0, kernel='rbf', gamma='scale', expected_keys=None):
     """
     Train a Support Vector Classifier (SVC) and evaluate its performance.
     
@@ -449,7 +452,7 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
         Trained model, scaler, test accuracy, and detailed metrics
     """
     # Create feature vectors
-    X = create_feature_vectors(examples)
+    X = create_feature_vectors(examples, expected_keys)
     y = np.array(labels)
     
     # Split data into train and test sets
@@ -493,7 +496,7 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
         
     return result_dict
 
-def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_components=1024, learning_rate=0.05, n_iter=40):
+def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_components=1024, learning_rate=0.05, n_iter=40, expected_keys=None):
     """
     Train a Restricted Boltzmann Machine + Logistic Regression pipeline and evaluate performance.
     
@@ -510,7 +513,7 @@ def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_c
         Trained model, scaler, test accuracy, and detailed metrics
     """
     # Create feature vectors
-    X = create_feature_vectors(examples)
+    X = create_feature_vectors(examples, expected_keys)
     y = np.array(labels)
     
     # Split data into train and test sets
@@ -618,5 +621,5 @@ def main():
     print("Confusion Matrix:")
     print(results['confusion_matrix'])
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
