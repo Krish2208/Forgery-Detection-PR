@@ -2,10 +2,61 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
+from skimage.feature import local_binary_pattern, hog
+
+LBP_POINTS = 24
+LBP_RADIUS = 8
+LBP_NUM_BINS = LBP_POINTS + 2
+HOG_PIXELS_PER_CELL = (16, 16)
+HOG_CELLS_PER_BLOCK = (2, 2)
+HOG_ORIENTATIONS = 9
+HOG_INPUT_SIZE = (256, 128)
+EXPECTED_HOG_FEATURES_LEN = 3780
+
+def extract_lbp_features(image_gray):
+    """Extract Local Binary Pattern features."""
+    try:
+        # Ensure image is 2D
+        if image_gray.ndim == 3:
+            image_gray = cv2.cvtColor(image_gray, cv2.COLOR_BGR2GRAY)
+
+        lbp = local_binary_pattern(image_gray, LBP_POINTS, LBP_RADIUS, method='uniform')
+        hist, _ = np.histogram(lbp.ravel(), bins=np.arange(0, LBP_NUM_BINS + 1), range=(0, LBP_NUM_BINS))
+        hist = hist.astype("float")
+        hist /= (hist.sum() + 1e-6)  # Normalize
+        return hist.tolist()
+    except Exception as e:
+        print(f"Warning: LBP feature extraction failed: {e}")
+        return [0.0] * LBP_NUM_BINS
+    
+def extract_hog_features(image_gray):
+    """Extract Histogram of Oriented Gradients features."""
+    try:
+        # Ensure image is 2D
+        if image_gray.ndim == 3:
+            image_gray = cv2.cvtColor(image_gray, cv2.COLOR_BGR2GRAY)
+
+        # Resize for consistent HOG feature vector length
+        img_resized_for_hog = cv2.resize(image_gray, HOG_INPUT_SIZE)
+
+        hog_feats = hog(img_resized_for_hog, orientations=HOG_ORIENTATIONS,
+                        pixels_per_cell=HOG_PIXELS_PER_CELL,
+                        cells_per_block=HOG_CELLS_PER_BLOCK,
+                        block_norm='L2-Hys', visualize=False, feature_vector=True)
+        # Pad or truncate if necessary, though resizing should make it fixed.
+        if len(hog_feats) < EXPECTED_HOG_FEATURES_LEN:
+            hog_feats = np.pad(hog_feats, (0, EXPECTED_HOG_FEATURES_LEN - len(hog_feats)), 'constant')
+        elif len(hog_feats) > EXPECTED_HOG_FEATURES_LEN:
+            hog_feats = hog_feats[:EXPECTED_HOG_FEATURES_LEN]
+        return hog_feats.tolist()
+    except Exception as e:
+        print(f"Warning: HOG feature extraction failed: {e}")
+        return [0.0] * EXPECTED_HOG_FEATURES_LEN
 
 def extract_signature_features(image_path, output_path=None, show_plot=False, 
                               threshold=220, use_sift=True, use_transitions=True,
-                              Tr=20, Th=20, Tw=20, num_transition_features=40):
+                              Tr=20, Th=20, Tw=20, num_transition_features=40,
+                              use_lbp=True, use_hog=True):
     """
     Comprehensive function to extract multiple feature sets from a signature image.
     
@@ -27,6 +78,10 @@ def extract_signature_features(image_path, output_path=None, show_plot=False,
         Parameters for geometric feature extraction
     num_transition_features : int
         Number of transition features to extract
+    use_lbp : bool, default=True
+        Whether to include LBP features
+    use_hog : bool, default=True
+        Whether to include HOG features
         
     Returns:
     --------
@@ -80,6 +135,24 @@ def extract_signature_features(image_path, output_path=None, show_plot=False,
             print(f"Warning: SIFT feature extraction failed: {e}")
             features['num_keypoints'] = 0
             features['mean_sift_descriptor'] = []
+            
+    # 7. Conditionally extract LBP features
+    if use_lbp:
+        try:
+            lbp_features = extract_lbp_features(gray)
+            features['lbp_features'] = lbp_features
+        except Exception as e:
+            print(f"Warning: LBP feature extraction failed: {e}")
+            features['lbp_features'] = [0.0] * LBP_NUM_BINS
+    
+    # 8. Conditionally extract HOG features
+    if use_hog:
+        try:
+            hog_features = extract_hog_features(gray)
+            features['hog_features'] = hog_features
+        except Exception as e:
+            print(f"Warning: HOG feature extraction failed: {e}")
+            features['hog_features'] = [0.0] * EXPECTED_HOG_FEATURES_LEN
     
     return features
 

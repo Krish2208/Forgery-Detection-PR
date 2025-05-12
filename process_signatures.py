@@ -2,7 +2,6 @@ import os
 import json
 import cv2
 import numpy as np
-from pathlib import Path
 from feature_extraction import extract_signature_features
 
 def process_signature_folder(input_folder, output_folder, cropped_folder):

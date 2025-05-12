@@ -2,3 +2,4 @@ signatures
 *.ipynb
 *.pyc
 models
+*.txt

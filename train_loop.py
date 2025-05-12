@@ -287,7 +287,8 @@ def flatten_features(json_data, expected_keys=None):
             'convexity', 'signature_density', 'compactness', 'eccentricity', 
             'hu_moments', 'polar_features', 'top_heights', 'bottom_heights', 
             'left_widths', 'right_widths', 'sixfold_surface', 
-            'transition_features', 'mean_sift_descriptor'
+            'transition_features', 'mean_sift_descriptor', 'lbp_features',
+            'hog_features'
         ]
     
     # Initialize flattened list
@@ -380,7 +381,7 @@ def create_feature_vectors(examples, expected_keys=None):
     
     return np.array(feature_vectors)
 
-def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42, expected_keys=None):
+def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42, expected_keys=None, use_pca=False, pca_components=10):
     """
     Train a Random Forest classifier and evaluate its performance.
     
@@ -389,6 +390,9 @@ def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42, expe
         labels: List of binary labels (0 or 1)
         test_size: Proportion of data to use for testing
         random_state: Random seed for reproducibility
+        expected_keys: List of expected feature keys to extract from JSON
+        use_pca: If True, apply PCA for dimensionality reduction
+        pca_components: Number of components to keep if PCA is used
         
     Returns:
         Trained model, scaler, test accuracy, and detailed metrics
@@ -406,6 +410,15 @@ def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42, expe
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+    
+    # Optionally apply PCA
+    if use_pca:
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=pca_components)
+        X_train_scaled = pca.fit_transform(X_train_scaled)
+        X_test_scaled = pca.transform(X_test_scaled)
+    else:
+        pca = None
     
     # Train Random Forest classifier
     clf = RandomForestClassifier(n_estimators=100, random_state=random_state)
@@ -430,12 +443,13 @@ def train_and_evaluate_rf(examples, labels, test_size=0.2, random_state=42, expe
         'classification_report': class_report,
         'confusion_matrix': conf_matrix,
         'cv_scores': cv_scores,
-        'feature_importances': clf.feature_importances_
+        'feature_importances': clf.feature_importances_,
+        'pca': pca
     }
 
 
 
-def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1.0, kernel='rbf', gamma='scale', expected_keys=None):
+def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1.0, kernel='rbf', gamma='scale', expected_keys=None, use_pca=False, pca_components=10):
     """
     Train a Support Vector Classifier (SVC) and evaluate its performance.
     
@@ -447,6 +461,9 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
         C: Regularization parameter
         kernel: Kernel type to be used in the algorithm
         gamma: Kernel coefficient for 'rbf', 'poly' and 'sigmoid'
+        expected_keys: List of expected feature keys to extract from JSON
+        use_pca: If True, apply PCA for dimensionality reduction
+        pca_components: Number of components to keep if PCA is used
         
     Returns:
         Trained model, scaler, test accuracy, and detailed metrics
@@ -464,6 +481,15 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+    
+    # Optionally apply PCA
+    if use_pca:
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=pca_components)
+        X_train = pca.fit_transform(X_train)
+        X_test = pca.transform(X_test)
+    else:
+        pca = None
     
     # Train SVC
     clf = SVC(C=C, kernel=kernel, gamma=gamma, probability=True, random_state=random_state)
@@ -491,12 +517,13 @@ def train_and_evaluate_svc(examples, labels, test_size=0.2, random_state=42, C=1
         'classification_report': class_report,
         'confusion_matrix': conf_matrix,
         'cv_scores': cv_scores,
-        'decision_scores': y_scores
+        'decision_scores': y_scores,
+        'pca': pca
     }
         
     return result_dict
 
-def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_components=1024, learning_rate=0.05, n_iter=40, expected_keys=None):
+def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_components=1024, learning_rate=0.05, n_iter=40, expected_keys=None, use_pca=False, pca_components=10):
     """
     Train a Restricted Boltzmann Machine + Logistic Regression pipeline and evaluate performance.
     
@@ -508,6 +535,9 @@ def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_c
         n_components: Number of hidden units in RBM
         learning_rate: Learning rate for RBM
         n_iter: Number of iterations/epochs for RBM
+        expected_keys: List of expected feature keys to extract from JSON
+        use_pca: If True, apply PCA for dimensionality reduction
+        pca_components: Number of components to keep if PCA is used
         
     Returns:
         Trained model, scaler, test accuracy, and detailed metrics
@@ -525,6 +555,15 @@ def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_c
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+    
+    # Optionally apply PCA
+    if use_pca:
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=pca_components)
+        X_train_scaled = pca.fit_transform(X_train_scaled)
+        X_test_scaled = pca.transform(X_test_scaled)
+    else:
+        pca = None
     
     # Set up RBM + LogisticRegression pipeline
     # RBM for feature learning + LogisticRegression for classification
@@ -564,7 +603,8 @@ def train_and_evaluate_rbm(examples, labels, test_size=0.2, random_state=42, n_c
         'classification_report': class_report,
         'confusion_matrix': conf_matrix,
         'cv_scores': cv_scores,
-        'probability_scores': y_scores
+        'probability_scores': y_scores,
+        'pca': pca
     }
 
 def main():
@@ -579,7 +619,7 @@ def main():
     
     # Train and evaluate model
     print("Training and evaluating model (Random Forest)...")
-    results = train_and_evaluate_rf(examples, labels)
+    results = train_and_evaluate_rf(examples, labels, use_pca=True, pca_components=3)
     
     # Print results
     print(f"Test Accuracy: {results['test_accuracy']:.4f}")
@@ -599,7 +639,7 @@ def main():
 
     # Train and evaluate model
     print("Training and evaluating model (SVC)...")
-    results = train_and_evaluate_svc(examples, labels)
+    results = train_and_evaluate_svc(examples, labels, use_pca=True, pca_components=2)
     
     # Print results
     print(f"Test Accuracy: {results['test_accuracy']:.4f}")
@@ -611,7 +651,7 @@ def main():
     
     # Train and evaluate Boltzmann Machine
     print("Training and evaluating model (Restricted Boltzmann Machine)...")
-    results = train_and_evaluate_rbm(examples, labels)
+    results = train_and_evaluate_rbm(examples, labels, use_pca=True, pca_components=2)
     
     # Print results
     print(f"Test Accuracy: {results['test_accuracy']:.4f}")
