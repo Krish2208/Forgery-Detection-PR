@@ -64,7 +64,7 @@ if sidebar_tab == "Signature Verification":
                 original_path = temp_file.name
             
             # Display the image
-            st.image(original_image, caption="Original Signature", use_column_width=True)
+            st.image(original_image, caption="Original Signature", use_container_width=True)
 
     # Second column for the signature to verify
     with col2:
@@ -78,7 +78,7 @@ if sidebar_tab == "Signature Verification":
                 verify_path = temp_file.name
             
             # Display the image
-            st.image(verify_image, caption="Signature to Verify", use_column_width=True)
+            st.image(verify_image, caption="Signature to Verify", use_container_width=True)
 
     # Function to list all available trained models
     def list_available_models():
